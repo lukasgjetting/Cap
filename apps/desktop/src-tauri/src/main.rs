@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use tokio::sync::Mutex;
 use std::sync::atomic::{AtomicBool};
 use std::env;
-use tauri::{command, Manager, Window};
+use tauri::{command, Manager, State, Window, SystemTray, SystemTrayEvent};
 use window_vibrancy::{apply_blur, apply_vibrancy, NSVisualEffectMaterial};
 use window_shadows::set_shadow;
 use tauri_plugin_positioner::{WindowExt, Position};
@@ -38,6 +38,9 @@ fn main() {
     std::panic::set_hook(Box::new(|info| {
         eprintln!("Thread panicked: {:?}", info);
     }));
+
+    // Init system tray
+    let tray = SystemTray::new();
 
     fn handle_ffmpeg_installation() -> FfmpegResult<()> {
         if ffmpeg_is_installed() {
@@ -159,6 +162,26 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_positioner::init())
+        .system_tray(tray)
+        .on_system_tray_event(|app, event| match event {
+            SystemTrayEvent::LeftClick {
+                position: _,
+                size: _,
+                ..
+            } => {
+                let state: State<'_, Arc<Mutex<RecordingState>>> = app.state();
+                let rt = tokio::runtime::Runtime::new().unwrap();
+
+                let stop_if_recording = async {
+                    if state.lock().await.media_process.is_some() {
+                        let _ = stop_all_recordings(state).await;
+                    }
+                };
+
+                let _ = rt.block_on(stop_if_recording);
+            },
+            _ => {}
+        })
         .setup(move |app| {
             let handle = app.handle();
 

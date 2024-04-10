@@ -44,6 +44,7 @@ pub struct RecordingOptions {
 
 #[tauri::command]
 pub async fn start_dual_recording(
+  app_handle: tauri::AppHandle,
   state: State<'_, Arc<Mutex<RecordingState>>>,
   options: RecordingOptions,
 ) -> Result<(), String> {
@@ -105,6 +106,10 @@ pub async fn start_dual_recording(
   } else {
       println!("Skipping upload loops due to NEXT_PUBLIC_LOCAL_MODE being set to 'true'.");
   }
+
+  app_handle
+    .tray_handle()
+    .set_icon(tauri::Icon::Raw(include_bytes!("../icons/TrayIconRecording.png").to_vec())).unwrap();
 
   Ok(())
 }
